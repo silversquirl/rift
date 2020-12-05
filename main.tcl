@@ -31,12 +31,20 @@ namespace eval rift {
 		set micros [expr $micros % $SECOND]
 		set centis [expr $micros / $CENTI]
 
-		if {$hrs > 0} {
-			set hrs "$hrs:"
+		set fmt [format "%.2d" $centis]
+		set fmt [formatPart {$hrs || $mins} 1 $secs . $fmt]
+		set fmt [formatPart $hrs $mins $mins : $fmt]
+		set fmt [formatPart 0 $hrs $hrs : $fmt]
+		return $fmt
+	}
+	proc formatPart {cond1 cond2 part sep fmt} {
+		if {[uplevel 1 expr $cond1]} {
+			format "%.2d%s%s" $part $sep $fmt
+		} elseif {[uplevel 1 expr $cond2]} {
+			format "%d%s%s" $part $sep $fmt
 		} else {
-			set hrs {}
+			return $fmt
 		}
-		format "%s%.2d:%.2d.%.2d" $hrs $mins $secs $centis
 	}
 
 	proc title {game category} {
