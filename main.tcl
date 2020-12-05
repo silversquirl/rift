@@ -8,24 +8,20 @@ namespace eval rift {
 		variable time
 		variable timerLabel
 
-		set timerLabel [formatDuration 0 $time]
+		set timerLabel [formatDuration $time]
 
 		set item [.splits selection]
 		if {$item ne ""} {
-			set splitStart [.splits set $item startTime]
-			if {$splitStart ne ""} {
-				.splits set $item duration [formatDuration $splitStart $time]
-			}
+			.splits set $item time $timerLabel
 		}
 	}
 
-	proc formatDuration {from to} {
+	proc formatDuration {micros} {
 		set CENTI  10000
 		set SECOND [expr $CENTI * 100]
 		set MINUTE [expr $SECOND * 60]
 		set HOUR   [expr $MINUTE * 60]
 
-		set micros [expr $to - $from]
 		set hrs    [expr $micros / $HOUR]
 		set micros [expr $micros % $HOUR]
 		set mins   [expr $micros / $MINUTE]
@@ -56,11 +52,10 @@ namespace eval rift {
 		ttk::treeview .splits \
 			-style Splits.Treeview \
 			-selectmode none -show tree \
-			-columns {delta duration startTime} \
-			-displaycolumns {delta duration}
+			-columns {delta time}
 
 		.splits column delta -width 50 -stretch false
-		.splits column duration -width 85 -stretch false
+		.splits column time -width 85 -stretch false
 
 		bind .splits <<TreeviewSelect>> ::rift::updateSplit
 		pack .splits -fill both -expand true
@@ -88,10 +83,6 @@ namespace eval rift {
 		# Open just enough to see the new active split
 		set item [.splits selection]
 		.splits see $item
-
-		# Set start time
-		variable time
-		.splits set $item startTime $time
 	}
 	proc timerStarted {} {
 		return [llength [.splits selection]]
@@ -115,15 +106,13 @@ namespace eval rift {
 
 		switch -nocase -- $type {
 			BEGIN {
+				resetTimes .splits {}
 				.splits selection set [firstLeaf .splits {}]
 			}
 
 			RESET {
+				resetTimes .splits {}
 				.splits selection set {}
-				# Clear all split times
-				foreach item [.splits children {}] {
-					.splits set $item duration {}
-				}
 				# Always update the timer after a RESET
 				updateTimer
 			}
@@ -156,6 +145,13 @@ namespace eval rift {
 		}
 		set item [$pathname next $item]
 		return [firstLeaf $pathname $item]
+	}
+
+	proc resetTimes {pathname item} {
+		foreach item [$pathname children $item] {
+			$pathname set $item time {}
+			resetTimes $pathname $item
+		}
 	}
 
 	proc alias {name} {
