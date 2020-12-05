@@ -13,17 +13,21 @@ namespace eval rift {
 			variable epoch
 			variable timerLabel
 
-			set micros [expr $time - $epoch]
-			set timerLabel [formatDuration $micros]
+			set timerLabel [formatDuration $time $epoch]
+
+			set item [.splits selection]
+			set splitStart [.splits set $item startTime]
+			.splits set $item duration [formatDuration $time $splitStart]
 		}
 	}
 
-	proc formatDuration {micros} {
-		set CENTI 10000
-		set SECOND [expr $CENTI* 100]
+	proc formatDuration {time epoch} {
+		set CENTI  10000
+		set SECOND [expr $CENTI * 100]
 		set MINUTE [expr $SECOND * 60]
-		set HOUR [expr $MINUTE * 60]
+		set HOUR   [expr $MINUTE * 60]
 
+		set micros [expr $time - $epoch]
 		set hrs    [expr $micros / $HOUR]
 		set micros [expr $micros % $HOUR]
 		set mins   [expr $micros / $MINUTE]
@@ -51,9 +55,15 @@ namespace eval rift {
 	}
 
 	proc splits {config} {
-		ttk::treeview .splits -style Splits.Treeview -columns {delta time} -selectmode none -show tree
+		ttk::treeview .splits \
+			-style Splits.Treeview \
+			-selectmode none -show tree \
+			-columns {delta duration startTime} \
+			-displaycolumns {delta duration}
+
 		.splits column delta -width 50 -stretch false
-		.splits column time -width 85 -stretch false
+		.splits column duration -width 85 -stretch false
+
 		bind .splits <<TreeviewSelect>> ::rift::updateSplit
 		pack .splits -fill both -expand true
 
@@ -61,24 +71,29 @@ namespace eval rift {
 	}
 	proc parseSplits {parent config} {
 		foreach {name body} $config {
-			set id [.splits insert $parent end -text $name]
+			set item [.splits insert $parent end -text $name]
 			if {$body ne "."} {
-				parseSplits $id $body
+				parseSplits $item $body
 			}
 		}
 	}
 	proc updateSplit {} {
 		# Close everything
-		set id [.splits selection]
-		while {$id ne ""} {
-			set id [.splits parent $id]
-			foreach child [.splits children $id] {
+		set item [.splits selection]
+		while {$item ne ""} {
+			set item [.splits parent $item]
+			foreach child [.splits children $item] {
 				.splits item $child -open false
 			}
 		}
 
 		# Open just enough to see the new active split
-		.splits see [.splits selection]
+		set item [.splits selection]
+		.splits see $item
+
+		# Set start time
+		variable time
+		.splits set $item startTime $time
 	}
 	proc timerStarted {} {
 		return [llength [.splits selection]]
@@ -112,8 +127,8 @@ namespace eval rift {
 			}
 
 			SPLIT {
-				set id [.splits selection]
-				.splits selection set [nextLeaf .splits $id]
+				set item [.splits selection]
+				.splits selection set [nextLeaf .splits $item]
 			}
 
 			TIME {}
