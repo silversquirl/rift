@@ -1,14 +1,21 @@
 #!/usr/bin/wish
 
+. configure -padx 5 -pady 5
+
 namespace eval rift {
 	variable time 0
 	variable timerLabel "XX:XX.XX"
+	variable currentStartTime 0
+	variable currentTimerLabel "XX:XX.XX"
 
 	proc updateTimer {} {
 		variable time
 		variable timerLabel
+		variable currentStartTime
+		variable currentTimerLabel
 
 		set timerLabel [formatDuration $time]
+		set currentTimerLabel [formatDuration [expr $time - $currentStartTime]]
 
 		set item [.splits selection]
 		while {$item ne {}} {
@@ -53,8 +60,18 @@ namespace eval rift {
 	}
 
 	proc timer {} {
-		ttk::label .timer -style Timer.TLabel -textvariable ::rift::timerLabel
+		ttk::frame .timer -borderwidth 0
 		pack .timer -fill x
+		grid columnconfigure .timer 0 -weight 1
+		grid columnconfigure .timer 1 -weight 0
+
+		ttk::label .timer.main -style Timer.TLabel -textvariable ::rift::timerLabel
+		grid .timer.main -column 0 -columnspan 2 -row 0 -sticky e
+
+		ttk::label .timer.currentLabel -style Current.Timer.TLabel -text "Current Split:"
+		grid .timer.currentLabel -column 0 -row 1 -sticky e -padx 3
+		ttk::label .timer.current -style Current.Timer.TLabel -textvariable ::rift::currentTimerLabel
+		grid .timer.current -column 1 -row 1 -sticky e
 	}
 
 	proc splits {config} {
@@ -104,6 +121,7 @@ namespace eval rift {
 	}
 	proc readEvent {f} {
 		variable time
+		variable currentStartTime
 
 		if {[chan gets $f ev] < 0} {
 			chan event $f readable
@@ -116,18 +134,21 @@ namespace eval rift {
 		switch -nocase -- $type {
 			BEGIN {
 				resetTimes .splits {}
+				set currentStartTime $time
 				.splits selection set [firstLeaf .splits {}]
 			}
 
 			RESET {
 				resetTimes .splits {}
 				.splits selection set {}
+				set currentStartTime 0
 				# Always update the timer after a RESET
 				updateTimer
 			}
 
 			SPLIT {
 				set item [.splits selection]
+				set currentStartTime $time
 				.splits selection set [nextLeaf .splits $item]
 			}
 		}
@@ -204,6 +225,7 @@ namespace eval riftConfig {
 	ttk::style configure Timer.TLabel -font "Helvetica 24 bold"
 	ttk::style configure Ahead.Timer.TLabel -foreground #64ff64
 	ttk::style configure Behind.Timer.TLabel -foreground #ff3232
+	ttk::style configure Current.Timer.TLabel -font "Helvetica 16"
 
 	ttk::style configure Splits.Treeview -font "Helvetica 12"
 	.splits tag configure best -foreground #ffdc00
