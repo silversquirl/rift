@@ -223,6 +223,7 @@ namespace eval rift {
 
 		ttk::style configure Splits.Treeview \
 			-background $background -fieldbackground $background \
+			-foreground $foreground -fieldforeground $foreground \
 			{*}$::rift::styles(splits)
 		ttk::style layout Splits.Treeview {
 			Treeview.padding -sticky nsew -border 0 -children {
