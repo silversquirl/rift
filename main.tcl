@@ -1,16 +1,21 @@
 #!/usr/bin/wish
 
 namespace eval rift {
-	set epoch 0
-	set time 0
-	set timerLabel "XX:XX.XX"
+	variable epoch 0
+	variable time 0
+	variable timerLabel "XX:XX.XX"
 	trace add variable epoch write updateTimer
 	trace add variable time write updateTimer
 
 	proc updateTimer {args} {
-		global time epoch
-		set time [expr $time - $epoch]
-		set timerLabel [formatDuration $time]
+		if {[timerStarted]} {
+			variable time
+			variable epoch
+			variable timerLabel
+
+			set micros [expr $time - $epoch]
+			set timerLabel [formatDuration $micros]
+		}
 	}
 
 	proc formatDuration {micros} {
@@ -41,7 +46,7 @@ namespace eval rift {
 	}
 
 	proc timer {} {
-		ttk::label .timer -style Timer.TLabel -textvariable ::timerLabel
+		ttk::label .timer -style Timer.TLabel -textvariable ::rift::timerLabel
 		pack .timer -fill x
 	}
 
@@ -85,7 +90,9 @@ namespace eval rift {
 		chan event $f readable "::rift::readEvent $f"
 	}
 	proc readEvent {f} {
-		global time epoch
+		variable time
+		variable epoch
+
 		if {[chan gets $f ev] < 0} {
 			chan event $f readable
 			error "Splitter disconnected"
@@ -110,10 +117,6 @@ namespace eval rift {
 			}
 
 			TIME {}
-		}
-
-		if {[timerStarted] && $time > $time} {
-			set time $time
 		}
 	}
 
