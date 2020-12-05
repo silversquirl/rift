@@ -1,3 +1,6 @@
+#define _POSIX_C_SOURCE 200809L
+#define _DEFAULT_SOURCE
+
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -10,12 +13,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <time.h>
 #include <unistd.h>
-
-#include "readv.h"
 
 /*
  * 16 byte "SAR_TIMER_START\0"
@@ -85,7 +87,7 @@ static void *scan_for_timer(pid_t pid) {
 
 		struct iovec local = {buf, r->len}, remote = {r->start, r->len};
 
-		size_t len_read = _process_vm_readv(pid, &local, 1, &remote, 1, 0);
+		size_t len_read = syscall(SYS_process_vm_readv, pid, &local, 1, &remote, 1, 0);
 
 		if (len_read == -1) {
 			fprintf(stderr, "[WARN] Failed to read address range with errno %d. Skipping\n", errno);
@@ -135,7 +137,7 @@ struct timer_info {
  * success, any other value on failure. */
 static int poll_timer(pid_t pid, void *addr, struct timer_info *info) {
 	struct iovec local = {info, sizeof *info}, remote = {(char *)addr + 16, sizeof *info};
-	size_t len_read = _process_vm_readv(pid, &local, 1, &remote, 1, 0);
+	size_t len_read = syscall(SYS_process_vm_readv, pid, &local, 1, &remote, 1, 0);
 
 	if (len_read != sizeof *info) {
 		return 1;
@@ -243,7 +245,8 @@ int splitter_update(int fd, struct state *st) {
 
 	switch (new_act) {
 		case START:
-			dprintf(fd, "%lu BEGIN\n", usec);
+			dprintf(fd, "0 BEGIN\n");
+			dprintf(fd, "%lu\n", usec);
 			break;
 		case SPLIT:
 		case END:
@@ -254,7 +257,8 @@ int splitter_update(int fd, struct state *st) {
 			break;
 		case RESTART:
 			dprintf(fd, "%lu RESET\n", usec);
-			dprintf(fd, "%lu BEGIN\n", usec);
+			dprintf(fd, "0 BEGIN\n");
+			dprintf(fd, "%lu\n", usec);
 			break;
 		default:
 			dprintf(fd, "%lu\n", usec);
