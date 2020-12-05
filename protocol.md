@@ -3,25 +3,23 @@ Rift Protocol
 
 A rift data stream is made up of a sequence of events.
 Events are encoded as a decimal time in microseconds, an ASCII space, an event type, and finally an ASCII line feed.
+If no event name is provided, the space may be omitted.
+
+Before any event is processed, the current time is set to the value specified.
 
 The different types of event are documented below.
 
 BEGIN
 -----
 
-Starts a new run, setting the epoch to the event time.
+Start a new run.
 
-END
----
+RESET
+-----
 
-Ends the current run.
+Stop any active run, update the displayed time and reset all splits.
 
 SPLIT
 -----
 
 Moves to the next split. If the current split is the final split, does the same thing as an END event.
-
-TIME
-----
-
-Signals the current time. Should be sent at least once per centisecond (100th of a second).

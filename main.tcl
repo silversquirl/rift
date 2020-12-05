@@ -1,33 +1,31 @@
 #!/usr/bin/wish
 
 namespace eval rift {
-	variable epoch 0
 	variable time 0
 	variable timerLabel "XX:XX.XX"
-	trace add variable epoch write updateTimer
-	trace add variable time write updateTimer
 
-	proc updateTimer {args} {
-		if {[timerStarted]} {
-			variable time
-			variable epoch
-			variable timerLabel
+	proc updateTimer {} {
+		variable time
+		variable timerLabel
 
-			set timerLabel [formatDuration $time $epoch]
+		set timerLabel [formatDuration 0 $time]
 
-			set item [.splits selection]
+		set item [.splits selection]
+		if {$item ne ""} {
 			set splitStart [.splits set $item startTime]
-			.splits set $item duration [formatDuration $time $splitStart]
+			if {$splitStart ne ""} {
+				.splits set $item duration [formatDuration $splitStart $time]
+			}
 		}
 	}
 
-	proc formatDuration {time epoch} {
+	proc formatDuration {from to} {
 		set CENTI  10000
 		set SECOND [expr $CENTI * 100]
 		set MINUTE [expr $SECOND * 60]
 		set HOUR   [expr $MINUTE * 60]
 
-		set micros [expr $time - $epoch]
+		set micros [expr $to - $from]
 		set hrs    [expr $micros / $HOUR]
 		set micros [expr $micros % $HOUR]
 		set mins   [expr $micros / $MINUTE]
@@ -106,7 +104,6 @@ namespace eval rift {
 	}
 	proc readEvent {f} {
 		variable time
-		variable epoch
 
 		if {[chan gets $f ev] < 0} {
 			chan event $f readable
@@ -118,20 +115,27 @@ namespace eval rift {
 
 		switch -nocase -- $type {
 			BEGIN {
-				set epoch $time
 				.splits selection set [firstLeaf .splits {}]
 			}
 
-			END {
+			RESET {
 				.splits selection set {}
+				# Clear all split times
+				foreach item [.splits children {}] {
+					.splits set $item duration {}
+				}
+				# Always update the timer after a RESET
+				updateTimer
 			}
 
 			SPLIT {
 				set item [.splits selection]
 				.splits selection set [nextLeaf .splits $item]
 			}
+		}
 
-			TIME {}
+		if {[timerStarted]} {
+			updateTimer
 		}
 	}
 
@@ -203,5 +207,5 @@ namespace eval riftConfig {
 	.splits tag configure behindGain -foreground #c80000
 	.splits tag configure behindLose -foreground #ffdc00
 
-	pipe /tmp/riftev
+	pipe splitter_fifo
 }
