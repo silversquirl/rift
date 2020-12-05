@@ -75,10 +75,10 @@ namespace eval rift {
 		# Close everything
 		set item [.splits selection]
 		while true {
+			set item [.splits parent $item]
 			foreach child [.splits children $item] {
 				.splits item $child -open false
 			}
-			set item [.splits parent $item]
 			if {$item eq {}} break
 		}
 
