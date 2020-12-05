@@ -83,6 +83,13 @@ namespace eval rift {
 		.splits column delta -width 50 -stretch false
 		.splits column time -width 85 -stretch false
 
+		# Default styles
+		.splits tag configure best -foreground #ffdc00
+		.splits tag configure aheadGain -foreground #50d200
+		.splits tag configure aheadLose -foreground #b4ff78
+		.splits tag configure behindGain -foreground #c80000
+		.splits tag configure behindLose -foreground #ffdc00
+
 		bind .splits <<TreeviewSelect>> ::rift::updateSplit
 		pack .splits -fill both -expand true
 
@@ -114,7 +121,7 @@ namespace eval rift {
 		return [llength [.splits selection]]
 	}
 
-	proc pipe {path} {
+	proc splitter {path} {
 		set f [open $path {RDONLY NONBLOCK}]
 		chan configure $f -blocking false
 		chan event $f readable "::rift::readEvent $f"
@@ -193,46 +200,29 @@ namespace eval riftConfig {
 	::rift::alias title
 	::rift::alias timer
 	::rift::alias splits
-	::rift::alias pipe
+	::rift::alias splitter
 }
 
-namespace eval riftConfig {
-	title "Portal 2" "Single Player (Quicksaves)"
-	timer
-	splits {
-		"Chapter 1" {
-			"Chamber 1" .
-			"Chamber 2" .
-			"Chamber 3" .
-		}
-		"Chapter 2" {
-			"Chamber 4" .
-			"Chamber 5" .
-			"Chamber 6" {
-				"Part 1" .
-				"Part 2" .
-			}
-		}
-		"Chapter 3" .
-		"Chapter 4" {
-			"Part 1" .
-			"Part 2" .
-		}
+# Default styles
+ttk::style configure Title.TLabel -font "Helvetica 14"
+
+ttk::style configure Timer.TLabel -font "Helvetica 24 bold"
+ttk::style configure Ahead.Timer.TLabel -foreground #64ff64
+ttk::style configure Behind.Timer.TLabel -foreground #ff3232
+ttk::style configure Current.Timer.TLabel -font "Helvetica 16"
+
+ttk::style configure Splits.Treeview -font "Helvetica 12"
+
+# Parse args
+if {[llength $argv] != 1} {
+	puts "Usage: $argv0 GAME"
+	puts ""
+	puts "Available games:"
+	foreach game [glob -directory games -tails -types d *] {
+		puts " - $game"
 	}
-
-	ttk::style configure Title.TLabel -font "Helvetica 14"
-
-	ttk::style configure Timer.TLabel -font "Helvetica 24 bold"
-	ttk::style configure Ahead.Timer.TLabel -foreground #64ff64
-	ttk::style configure Behind.Timer.TLabel -foreground #ff3232
-	ttk::style configure Current.Timer.TLabel -font "Helvetica 16"
-
-	ttk::style configure Splits.Treeview -font "Helvetica 12"
-	.splits tag configure best -foreground #ffdc00
-	.splits tag configure aheadGain -foreground #50d200
-	.splits tag configure aheadLose -foreground #b4ff78
-	.splits tag configure behindGain -foreground #c80000
-	.splits tag configure behindLose -foreground #ffdc00
-
-	pipe splitter_fifo
+	exit 1
+}
+namespace eval riftConfig {
+	source "games/[lindex $::argv 0]/config.tcl"
 }
