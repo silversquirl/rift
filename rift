@@ -187,6 +187,7 @@ namespace eval rift {
 	# Default styles
 	array set styles {
 		background #fff
+		foreground #000
 
 		title {-font "Helvetica 14"}
 		timer {-font "Helvetica 24 bold"}
@@ -209,8 +210,9 @@ namespace eval rift {
 	}
 	proc applyStyles {} {
 		set background [lindex $::rift::styles(background) 0]
+		set foreground [lindex $::rift::styles(foreground) 0]
 		. configure -background $background
-		ttk::style configure . -background $background
+		ttk::style configure . -background $background -foreground $foreground
 
 		ttk::style configure Title.TLabel {*}$::rift::styles(title)
 
