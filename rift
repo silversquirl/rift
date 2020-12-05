@@ -83,13 +83,6 @@ namespace eval rift {
 		.splits column delta -width 50 -stretch false
 		.splits column time -width 85 -stretch false
 
-		# Default styles
-		.splits tag configure best -foreground #ffdc00
-		.splits tag configure aheadGain -foreground #50d200
-		.splits tag configure aheadLose -foreground #b4ff78
-		.splits tag configure behindGain -foreground #c80000
-		.splits tag configure behindLose -foreground #ffdc00
-
 		bind .splits <<TreeviewSelect>> ::rift::updateSplit
 		pack .splits -fill both -expand true
 
@@ -191,27 +184,77 @@ namespace eval rift {
 		}
 	}
 
+	# Default styles
+	array set styles {
+		background #fff
+
+		title {-font "Helvetica 14"}
+		timer {-font "Helvetica 24 bold"}
+		timer.ahead {-foreground #64ff64}
+		timer.behind {-foreground #ff3232}
+		timer.current {-font "Helvetica 16"}
+
+		splits {-font "Helvetica 12"}
+		splits.best {-foreground #ffdc00}
+		splits.aheadGain {-foreground #50d200}
+		splits.aheadLose {-foreground #b4ff78}
+		splits.behindGain {-foreground #c80000}
+		splits.behindLose {-foreground #ffdc00}
+	}
+	proc style {name args} {
+		# Attempt an access to ensure the key is valid
+		nop $::rift::styles($name)
+
+		set ::rift::styles($name) $args
+	}
+	proc applyStyles {} {
+		set background [lindex $::rift::styles(background) 0]
+		. configure -background $background
+		ttk::style configure . -background $background
+
+		ttk::style configure Title.TLabel {*}$::rift::styles(title)
+
+		ttk::style configure Timer.TLabel {*}$::rift::styles(timer)
+		ttk::style configure Ahead.Timer.TLabel {*}$::rift::styles(timer.ahead)
+		ttk::style configure Behind.Timer.TLabel {*}$::rift::styles(timer.ahead)
+		ttk::style configure Current.Timer.TLabel {*}$::rift::styles(timer.current)
+
+		ttk::style configure Splits.Treeview \
+			-background $background -fieldbackground $background \
+			{*}$::rift::styles(splits)
+		ttk::style layout Splits.Treeview {
+			Treeview.padding -sticky nsew -border 0 -children {
+				Treeview.treearea -sticky nsew -border 0 -expand true
+			}
+		}
+		.splits tag configure best {*}$::rift::styles(splits.best)
+		.splits tag configure aheadGain {*}$::rift::styles(splits.aheadGain)
+		.splits tag configure aheadLose {*}$::rift::styles(splits.aheadLose)
+		.splits tag configure behindGain {*}$::rift::styles(splits.behindGain)
+		.splits tag configure behindLose {*}$::rift::styles(splits.behindLose)
+	}
+	proc aliasStyles {} {
+		foreach name [array names ::rift::styles] {
+			uplevel 1 "proc $name args {::rift::style $name {*}\$args}"
+		}
+	}
+
+	proc nop args {}
 	proc alias {name} {
 		uplevel 1 "proc $name args {::rift::$name {*}\$args}"
 	}
 }
 
-namespace eval riftConfig {
+namespace eval riftGameConfig {
 	::rift::alias title
 	::rift::alias timer
 	::rift::alias splits
 	::rift::alias splitter
 }
 
-# Default styles
-ttk::style configure Title.TLabel -font "Helvetica 14"
-
-ttk::style configure Timer.TLabel -font "Helvetica 24 bold"
-ttk::style configure Ahead.Timer.TLabel -foreground #64ff64
-ttk::style configure Behind.Timer.TLabel -foreground #ff3232
-ttk::style configure Current.Timer.TLabel -font "Helvetica 16"
-
-ttk::style configure Splits.Treeview -font "Helvetica 12"
+namespace eval riftStyleConfig {
+	::rift::aliasStyles
+}
 
 # Parse args
 if {[llength $argv] != 1} {
@@ -223,6 +266,10 @@ if {[llength $argv] != 1} {
 	}
 	exit 1
 }
-namespace eval riftConfig {
+namespace eval riftGameConfig {
 	source "games/[lindex $::argv 0]/config.tcl"
 }
+namespace eval riftStyleConfig {
+	source "style.tcl"
+}
+::rift::applyStyles
