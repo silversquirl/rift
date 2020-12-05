@@ -11,8 +11,9 @@ namespace eval rift {
 		set timerLabel [formatDuration $time]
 
 		set item [.splits selection]
-		if {$item ne ""} {
+		while {$item ne {}} {
 			.splits set $item time $timerLabel
+			set item [.splits parent $item]
 		}
 	}
 
@@ -73,16 +74,16 @@ namespace eval rift {
 	proc updateSplit {} {
 		# Close everything
 		set item [.splits selection]
-		while {$item ne ""} {
-			set item [.splits parent $item]
+		while true {
 			foreach child [.splits children $item] {
 				.splits item $child -open false
 			}
+			set item [.splits parent $item]
+			if {$item eq {}} break
 		}
 
 		# Open just enough to see the new active split
-		set item [.splits selection]
-		.splits see $item
+		.splits see [.splits selection]
 	}
 	proc timerStarted {} {
 		return [llength [.splits selection]]
