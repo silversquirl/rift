@@ -7,6 +7,7 @@ namespace eval rift {
 	variable timerLabel "XX:XX.XX"
 	variable currentStartTime 0
 	variable currentTimerLabel "XX:XX.XX"
+	variable prevItem {}
 
 	proc updateTimer {} {
 		variable time
@@ -100,19 +101,16 @@ namespace eval rift {
 		# Open just enough to see the new active split
 		.splits see [.splits selection]
 
-		# Find start of previous split tree
-		set item [.splits selection]
-		while {$item ne {} && [.splits prev $item] eq {}} {
-			set item [.splits parent $item]
-		}
-		set item [.splits prev $item]
-
 		# Set the previous split's time
+		variable prevItem
 		variable timerLabel
-		while {$item ne {}} {
+		set item $prevItem
+		.splits set $item time $timerLabel
+		while {$item ne {} && [.splits next $item] eq {}} {
+			set item [.splits parent $item]
 			.splits set $item time $timerLabel
-			set item [lindex [.splits children $item] end]
 		}
+		set prevItem [.splits selection]
 	}
 	proc timerStarted {} {
 		return [llength [.splits selection]]
