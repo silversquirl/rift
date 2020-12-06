@@ -7,7 +7,7 @@ namespace eval rift {
 	variable timerLabel "XX:XX.XX"
 	variable currentStartTime 0
 	variable currentTimerLabel "XX:XX.XX"
-	variable prevItem {}
+	variable runFilename {}
 
 	proc updateTimer {} {
 		variable time
@@ -74,46 +74,110 @@ namespace eval rift {
 		.splits column delta -width 50 -stretch false
 		.splits column time -width 85 -stretch false
 
-		bind .splits <<TreeviewSelect>> ::rift::updateSplit
+		loadSplitLayout {} $config
 		pack .splits -fill both -expand true
-
-		parseSplits {} $config
 	}
-	proc parseSplits {parent config} {
-		foreach {name body} $config {
-			set item [.splits insert $parent end -text $name]
-			if {$body ne "."} {
-				parseSplits $item $body
-			}
+	proc setSplit {splitID saveRun} {
+		if {$splitID eq [.splits selection]} {
+			return
 		}
-	}
-	proc updateSplit {} {
-		# Close everything
-		set item [.splits selection]
-		while true {
-			set item [.splits parent $item]
-			foreach child [.splits children $item] {
-				.splits item $child -open false
-			}
-			if {$item eq {}} break
-		}
-
-		# Open just enough to see the new active split
-		.splits see [.splits selection]
 
 		# Set the previous split's time
-		variable prevItem
 		variable timerLabel
-		set item $prevItem
+		set item [.splits selection]
 		.splits set $item time $timerLabel
 		while {$item ne {} && [.splits next $item] eq {}} {
 			set item [.splits parent $item]
 			.splits set $item time $timerLabel
 		}
-		set prevItem [.splits selection]
+
+		# Close everything
+		set item [.splits selection]
+		while {$item ne {}} {
+			.splits item $item -open false
+			set item [.splits parent $item]
+		}
+
+		# Set new active split
+		.splits selection set $splitID
+		.splits see [.splits selection]
+		variable time
+		set currentStartTime $time
+
+		# If we're ending the run and have been asked to save, save the run
+		if {$splitID eq {} && $saveRun} {
+			variable gamePath
+			variable runFilename
+			file mkdir "$gamePath/runs"
+			set f [open "$gamePath/runs/$runFilename" w]
+			try {
+				puts -nonewline $f [saveSplitTimes {} {}]
+			} finally {
+				close $f
+			}
+		}
 	}
 	proc timerStarted {} {
 		return [llength [.splits selection]]
+	}
+
+	proc loadSplitLayout {root config} {
+		foreach {name body} $config {
+			set item [.splits insert $root end -text $name]
+			if {[llength $body] != 1} {
+				loadSplitLayout $item $body
+			}
+		}
+	}
+	proc loadSplitTimes {root config} {
+		foreach {name body} $config item [.splits children $root] {
+			if {[llength $body] == 1} {
+				while {$item ne {}} {
+					.splits set $item time [lindex $body 0]
+					set item [.splits parent $item]
+				}
+			} else {
+				loadSplitTimes $item $body
+			}
+		}
+	}
+	proc saveSplitTimes {root indent} {
+		set text ""
+		foreach item [.splits children $root] {
+			set name [.splits item $item -text]
+			set children [.splits children $item]
+			if {[llength $children] == 0} {
+				append text "$indent[list $name [.splits set $item time]]\n"
+			} else {
+				append text "$indent[list $name] {\n"
+				append text [saveSplitTimes $item "\t$indent"]
+				append text "$indent}\n"
+			}
+		}
+		return $text
+	}
+
+	proc resetTimes {} {
+		variable gamePath
+		try {
+			set f [open "$gamePath/pb"]
+		} on error {} {
+			emptyTimes {}
+			tk_messageBox -icon warning -message "Could not open personal best"
+			return
+		}
+		try {
+			set config [chan read $f]
+		} finally {
+			close $f
+		}
+		loadSplitTimes {} $config
+	}
+	proc emptyTimes {item} {
+		foreach item [.splits children $item] {
+			.splits set $item time {}
+			emptyTimes $item
+		}
 	}
 
 	proc splitter {path} {
@@ -135,23 +199,21 @@ namespace eval rift {
 
 		switch -nocase -- $type {
 			BEGIN {
-				resetTimes .splits {}
-				set currentStartTime $time
-				.splits selection set [firstLeaf .splits {}]
+				variable runFilename [clock format [clock seconds] -timezone UTC -format "%Y-%m-%dT%T"]
+				resetTimes
+				setSplit [firstLeaf .splits {}] false
 			}
 
 			RESET {
-				resetTimes .splits {}
-				.splits selection set {}
-				set currentStartTime $time
+				resetTimes
+				setSplit {} false
 				# Always update the timer after a RESET
 				updateTimer
 			}
 
 			SPLIT {
 				set item [.splits selection]
-				set currentStartTime $time
-				.splits selection set [nextLeaf .splits $item]
+				setSplit [nextLeaf .splits $item] true
 			}
 		}
 
@@ -177,13 +239,6 @@ namespace eval rift {
 		}
 		set item [$pathname next $item]
 		return [firstLeaf $pathname $item]
-	}
-
-	proc resetTimes {pathname item} {
-		foreach item [$pathname children $item] {
-			$pathname set $item time {}
-			resetTimes $pathname $item
-		}
 	}
 
 	# Default styles
@@ -272,10 +327,12 @@ if {[llength $argv] != 1} {
 	}
 	exit 1
 }
+set ::rift::gamePath "games/[lindex $argv 0]"
 namespace eval riftGameConfig {
-	source "games/[lindex $::argv 0]/config.tcl"
+	source "$::rift::gamePath/config.tcl"
 }
 namespace eval riftStyleConfig {
 	source "style.tcl"
 }
 ::rift::applyStyles
+::rift::resetTimes
