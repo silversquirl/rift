@@ -102,66 +102,67 @@ namespace eval rift {
 		pack .splits -fill both -expand true
 	}
 	proc setSplit {splitID saveRun} {
-		if {$splitID eq [.splits selection]} {
-			return
-		}
-
-		# Set the previous split's time
-		variable timerLabel
-		set item [.splits selection]
-		.splits set $item time $timerLabel
-		while {$item ne {} && [.splits next $item] eq {}} {
-			set item [.splits parent $item]
+		if {$splitID ne [.splits selection]} {
+			# Set the previous split's time
+			variable timerLabel
+			set item [.splits selection]
 			.splits set $item time $timerLabel
-		}
+			while {$item ne {} && [.splits next $item] eq {}} {
+				set item [.splits parent $item]
+				.splits set $item time $timerLabel
+			}
 
-		# Update the golds file if needed
-		variable gamePath
-		variable time
-		variable currentStartTime
-		if {$saveRun && [updateGolds $currentStartTime $time [.splits selection]]} {
-			variable golds
-			set f [open "$gamePath/golds" w]
-			try {
-				# TODO: formatting
-				puts $f $golds
-			} finally {
-				close $f
+			# Update the golds file if needed
+			variable gamePath
+			variable time
+			variable currentStartTime
+			if {$saveRun && [updateGolds $currentStartTime $time [.splits selection]]} {
+				variable golds
+				set f [open "$gamePath/golds" w]
+				try {
+					# TODO: formatting
+					puts $f $golds
+				} finally {
+					close $f
+				}
+			}
+
+			# Close everything
+			set item [.splits selection]
+			while {$item ne {}} {
+				.splits item $item -open false
+				set item [.splits parent $item]
+			}
+
+			# Set new active split
+			.splits selection set $splitID
+			.splits see [.splits selection]
+
+			# If we're ending the run and have been asked to save, save the run
+			if {$splitID eq {} && $saveRun} {
+				variable runFilename
+				file mkdir "$gamePath/runs"
+				set f [open "$gamePath/runs/$runFilename" w]
+				try {
+					set times [formatSplitTimes {} [saveSplitTimes {}]]
+					puts -nonewline $f $times
+				} finally {
+					close $f
+				}
+
+				# If this run is the new PB, update the symlink
+				variable personalBest
+				if {[parseDuration $personalBest] > [parseDuration [runLength]]} {
+					file delete "$gamePath/pb"
+					file link -symbolic "$gamePath/pb" "runs/$runFilename"
+					set personalBest [runLength]
+				}
 			}
 		}
 
-		# Close everything
-		set item [.splits selection]
-		while {$item ne {}} {
-			.splits item $item -open false
-			set item [.splits parent $item]
-		}
-
-		# Set new active split
-		.splits selection set $splitID
-		.splits see [.splits selection]
+		# Update start time even when changing to the same split
 		variable time
 		variable currentStartTime $time
-
-		# If we're ending the run and have been asked to save, save the run
-		if {$splitID eq {} && $saveRun} {
-			variable runFilename
-			file mkdir "$gamePath/runs"
-			set f [open "$gamePath/runs/$runFilename" w]
-			try {
-				puts -nonewline $f [saveSplitTimes {} {}]
-			} finally {
-				close $f
-			}
-
-			# If this run is the new PB, update the symlink
-			variable personalBest
-			if {[parseDuration $personalBest] > [parseDuration [runLength]]} {
-				file delete "$gamePath/pb"
-				file link -symbolic "$gamePath/pb" "runs/$runFilename"
-				set personalBest [runLength]
-			}
-		}
 	}
 	proc timerStarted {} {
 		return [llength [.splits selection]]
@@ -187,20 +188,17 @@ namespace eval rift {
 			}
 		}
 	}
-	proc saveSplitTimes {root indent} {
-		set text ""
+	proc saveSplitTimes {root} {
+		set l {}
 		foreach item [.splits children $root] {
-			set name [.splits item $item -text]
-			set children [.splits children $item]
-			if {[llength $children] == 0} {
-				append text "$indent[list $name [.splits set $item time]]\n"
+			lappend l [.splits item $item -text]
+			if {[llength [.splits children $item]]} {
+				lappend l [saveSplitTimes $item]
 			} else {
-				append text "$indent[list $name] {\n"
-				append text [saveSplitTimes $item "\t$indent"]
-				append text "$indent}\n"
+				lappend l [.splits set $item time]
 			}
 		}
-		return $text
+		return $l
 	}
 	proc updateGolds {startTime endTime item} {
 		set path {}
@@ -218,13 +216,26 @@ namespace eval rift {
 		} on error {} {
 			set goldTime inf
 		}
-		puts "$goldTime $time"
 		if {$goldTime > $time} {
 			lset golds $path [formatDuration $time]
 			return true
 		} else {
 			return false
 		}
+	}
+	proc formatSplitTimes {indent times} {
+		set text ""
+		foreach {name body} $times {
+			append text $indent[list $name]
+			if {[llength $body] == 1} {
+				append text " $body\n"
+			} else {
+				append text " {\n"
+				append text [formatSplitTimes \t$indent $body]
+				append text "$indent}\n"
+			}
+		}
+		return $text
 	}
 
 	proc resetTimes {} {
