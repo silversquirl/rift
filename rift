@@ -55,23 +55,19 @@ namespace eval rift {
 	}
 
 	proc title {game category} {
-		ttk::label .title -style Title.TLabel -text "$game\n$category"
-		pack .title -fill x
+		ttk::label .title -style Title.TLabel -text "$game\n$category" -justify center
+		pack .title
 	}
 
 	proc timer {} {
 		ttk::frame .timer -borderwidth 0
 		pack .timer -fill x
-		grid columnconfigure .timer 0 -weight 1
-		grid columnconfigure .timer 1 -weight 0
 
-		ttk::label .timer.main -style Timer.TLabel -textvariable ::rift::timerLabel
-		grid .timer.main -column 0 -columnspan 2 -row 0 -sticky e
+		ttk::label .timer.main -style Timer.TLabel -textvariable ::rift::timerLabel -anchor e
+		pack .timer.main -fill x
 
-		ttk::label .timer.currentLabel -style Current.Timer.TLabel -text "Current Split:"
-		grid .timer.currentLabel -column 0 -row 1 -sticky e -padx 3
-		ttk::label .timer.current -style Current.Timer.TLabel -textvariable ::rift::currentTimerLabel
-		grid .timer.current -column 1 -row 1 -sticky e
+		ttk::label .timer.current -style Current.Timer.TLabel -textvariable ::rift::currentTimerLabel -anchor e
+		pack .timer.current -fill x
 	}
 
 	proc splits {config} {
@@ -141,7 +137,7 @@ namespace eval rift {
 			RESET {
 				resetTimes .splits {}
 				.splits selection set {}
-				set currentStartTime 0
+				set currentStartTime $time
 				# Always update the timer after a RESET
 				updateTimer
 			}
@@ -225,6 +221,7 @@ namespace eval rift {
 			-background $background -fieldbackground $background \
 			-foreground $foreground -fieldforeground $foreground \
 			{*}$::rift::styles(splits)
+		ttk::style configure Splits.Treeview.Item -indicatorsize 0 -indicatormargins 0
 		ttk::style layout Splits.Treeview {
 			Treeview.padding -sticky nsew -border 0 -children {
 				Treeview.treearea -sticky nsew -border 0 -expand true
