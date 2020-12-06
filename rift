@@ -119,7 +119,7 @@ namespace eval rift {
 	}
 
 	proc splitter {path} {
-		set f [open $path {RDONLY NONBLOCK}]
+		set f [open $path]
 		chan configure $f -blocking false
 		chan event $f readable "::rift::readEvent $f"
 	}
