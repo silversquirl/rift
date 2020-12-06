@@ -7,7 +7,9 @@ namespace eval rift {
 	variable timerLabel "XX:XX.XX"
 	variable currentStartTime 0
 	variable currentTimerLabel "XX:XX.XX"
-	variable runFilename {}
+	variable runFilename ""
+	variable personalBest ""
+	variable pbwarned false
 
 	proc updateTimer {} {
 		variable time
@@ -19,19 +21,18 @@ namespace eval rift {
 		set currentTimerLabel [formatDuration [expr $time - $currentStartTime]]
 	}
 
+	variable CENTI  10000
+	variable SECOND [expr $CENTI * 100]
+	variable MINUTE [expr $SECOND * 60]
+	variable HOUR   [expr $MINUTE * 60]
 	proc formatDuration {micros} {
-		set CENTI  10000
-		set SECOND [expr $CENTI * 100]
-		set MINUTE [expr $SECOND * 60]
-		set HOUR   [expr $MINUTE * 60]
-
-		set hrs    [expr $micros / $HOUR]
-		set micros [expr $micros % $HOUR]
-		set mins   [expr $micros / $MINUTE]
-		set micros [expr $micros % $MINUTE]
-		set secs   [expr $micros / $SECOND]
-		set micros [expr $micros % $SECOND]
-		set centis [expr $micros / $CENTI]
+		set hrs    [expr $micros / $::rift::HOUR]
+		set micros [expr $micros % $::rift::HOUR]
+		set mins   [expr $micros / $::rift::MINUTE]
+		set micros [expr $micros % $::rift::MINUTE]
+		set secs   [expr $micros / $::rift::SECOND]
+		set micros [expr $micros % $::rift::SECOND]
+		set centis [expr $micros / $::rift::CENTI]
 
 		set fmt [format "%.2d" $centis]
 		set fmt [formatPart {$hrs || $mins} 1 $secs . $fmt]
@@ -46,6 +47,24 @@ namespace eval rift {
 			format "%d%s%s" $part $sep $fmt
 		} else {
 			return $fmt
+		}
+	}
+
+	proc parseDuration {fmt} {
+		set bits [split $fmt :]
+		set secs [lpop bits inf]
+		set mins [lpop bits 0]
+		set hrs  [lpop bits 0]
+		expr {$secs*$::rift::SECOND + $mins*$::rift::MINUTE + $hrs*$::rift::HOUR}
+	}
+	proc lpop {listVar default} {
+		upvar 1 $listVar var
+		if {[llength $var]} {
+			set val [lindex $var end]
+			lreplace $var end end
+			return $val
+		} else {
+			return $default
 		}
 	}
 
@@ -115,6 +134,14 @@ namespace eval rift {
 			} finally {
 				close $f
 			}
+
+			# If this run is the new PB, update the symlink
+			variable personalBest
+			if {[parseDuration $personalBest] > [parseDuration [runLength]]} {
+				file delete "$gamePath/pb"
+				file link -symbolic "$gamePath/pb" "runs/$runFilename"
+				set personalBest [runLength]
+			}
 		}
 	}
 	proc timerStarted {} {
@@ -163,7 +190,11 @@ namespace eval rift {
 			set f [open "$gamePath/pb"]
 		} on error {} {
 			emptyTimes {}
-			tk_messageBox -icon warning -message "Could not open personal best"
+			variable pbwarned
+			if {!$pbwarned} {
+				tk_messageBox -icon warning -message "Could not open personal best"
+				set pbwarned true
+			}
 			return
 		}
 		try {
@@ -172,12 +203,18 @@ namespace eval rift {
 			close $f
 		}
 		loadSplitTimes {} $config
+
+		# Set PB time
+		variable personalBest [runLength]
 	}
 	proc emptyTimes {item} {
 		foreach item [.splits children $item] {
 			.splits set $item time {}
 			emptyTimes $item
 		}
+	}
+	proc runLength {} {
+		 .splits set [lindex [.splits children {}] end] time
 	}
 
 	proc splitter {path} {
@@ -200,13 +237,13 @@ namespace eval rift {
 		switch -nocase -- $type {
 			BEGIN {
 				variable runFilename [clock format [clock seconds] -timezone UTC -format "%Y-%m-%dT%T"]
-				resetTimes
 				setSplit [firstLeaf .splits {}] false
+				resetTimes
 			}
 
 			RESET {
-				resetTimes
 				setSplit {} false
+				resetTimes
 				# Always update the timer after a RESET
 				updateTimer
 			}
