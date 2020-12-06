@@ -9,7 +9,10 @@ namespace eval rift {
 	variable currentTimerLabel "XX:XX.XX"
 	variable runFilename ""
 	variable personalBest ""
-	variable pbwarned false
+	variable golds {}
+	variable splitLayout {}
+	array set filewarned {golds false pb false}
+	variable goldswarned false
 
 	proc updateTimer {} {
 		variable time
@@ -26,6 +29,7 @@ namespace eval rift {
 	variable MINUTE [expr $SECOND * 60]
 	variable HOUR   [expr $MINUTE * 60]
 	proc formatDuration {micros} {
+		set micros [expr int($micros)]
 		set hrs    [expr $micros / $::rift::HOUR]
 		set micros [expr $micros % $::rift::HOUR]
 		set mins   [expr $micros / $::rift::MINUTE]
@@ -61,7 +65,7 @@ namespace eval rift {
 		upvar 1 $listVar var
 		if {[llength $var]} {
 			set val [lindex $var end]
-			lreplace $var end end
+			set var [lreplace $var end end]
 			return $val
 		} else {
 			return $default
@@ -93,7 +97,8 @@ namespace eval rift {
 		.splits column delta -width 50 -stretch false
 		.splits column time -width 85 -stretch false
 
-		loadSplitLayout {} $config
+		variable splitLayout $config
+		loadSplitLayout {} $splitLayout
 		pack .splits -fill both -expand true
 	}
 	proc setSplit {splitID saveRun} {
@@ -110,6 +115,21 @@ namespace eval rift {
 			.splits set $item time $timerLabel
 		}
 
+		# Update the golds file if needed
+		variable gamePath
+		variable time
+		variable currentStartTime
+		if {$saveRun && [updateGolds $currentStartTime $time [.splits selection]]} {
+			variable golds
+			set f [open "$gamePath/golds" w]
+			try {
+				# TODO: formatting
+				puts $f $golds
+			} finally {
+				close $f
+			}
+		}
+
 		# Close everything
 		set item [.splits selection]
 		while {$item ne {}} {
@@ -121,11 +141,10 @@ namespace eval rift {
 		.splits selection set $splitID
 		.splits see [.splits selection]
 		variable time
-		set currentStartTime $time
+		variable currentStartTime $time
 
 		# If we're ending the run and have been asked to save, save the run
 		if {$splitID eq {} && $saveRun} {
-			variable gamePath
 			variable runFilename
 			file mkdir "$gamePath/runs"
 			set f [open "$gamePath/runs/$runFilename" w]
@@ -183,29 +202,68 @@ namespace eval rift {
 		}
 		return $text
 	}
+	proc updateGolds {startTime endTime item} {
+		set path {}
+		while {$item ne {}} {
+			lappend path [expr {2*[.splits index $item] + 1}]
+			set item [.splits parent $item]
+		}
+		set path [lreverse $path]
+
+		set time [expr {$endTime - $startTime}]
+
+		variable golds
+		try {
+			set goldTime [parseDuration [lindex $golds $path]]
+		} on error {} {
+			set goldTime inf
+		}
+		puts "$goldTime $time"
+		if {$goldTime > $time} {
+			lset golds $path [formatDuration $time]
+			return true
+		} else {
+			return false
+		}
+	}
 
 	proc resetTimes {} {
-		variable gamePath
-		try {
-			set f [open "$gamePath/pb"]
-		} on error {} {
+		# Load personal best
+		if {[tryRead pb pb]} {
+			loadSplitTimes {} $pb
+		} else {
 			emptyTimes {}
-			variable pbwarned
-			if {!$pbwarned} {
-				tk_messageBox -icon warning -message "Could not open personal best"
-				set pbwarned true
-			}
-			return
 		}
-		try {
-			set config [chan read $f]
-		} finally {
-			close $f
+
+		# Load golds
+		variable golds
+		if {![tryRead golds golds]} {
+			variable splitLayout
+			set golds $splitLayout
 		}
-		loadSplitTimes {} $config
 
 		# Set PB time
 		variable personalBest [runLength]
+	}
+	proc tryRead {name varName} {
+		variable gamePath
+		upvar 1 $varName var
+		try {
+			set f [open "$gamePath/$name"]
+			try {
+				set var [chan read $f]
+			} finally {
+				close $f
+			}
+			return true
+		} on error {} {
+			variable filewarned
+			if {!$filewarned($name)} {
+				tk_messageBox -icon warning -message "Could not open $gamePath/$name"
+				set filewarned($name) true
+			}
+			return false
+		}
 	}
 	proc emptyTimes {item} {
 		foreach item [.splits children $item] {
