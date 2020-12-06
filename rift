@@ -16,12 +16,6 @@ namespace eval rift {
 
 		set timerLabel [formatDuration $time]
 		set currentTimerLabel [formatDuration [expr $time - $currentStartTime]]
-
-		set item [.splits selection]
-		while {$item ne {}} {
-			.splits set $item time $timerLabel
-			set item [.splits parent $item]
-		}
 	}
 
 	proc formatDuration {micros} {
@@ -105,6 +99,20 @@ namespace eval rift {
 
 		# Open just enough to see the new active split
 		.splits see [.splits selection]
+
+		# Find start of previous split tree
+		set item [.splits selection]
+		while {$item ne {} && [.splits prev $item] eq {}} {
+			set item [.splits parent $item]
+		}
+		set item [.splits prev $item]
+
+		# Set the previous split's time
+		variable timerLabel
+		while {$item ne {}} {
+			.splits set $item time $timerLabel
+			set item [lindex [.splits children $item] end]
+		}
 	}
 	proc timerStarted {} {
 		return [llength [.splits selection]]
