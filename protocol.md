@@ -22,4 +22,4 @@ Stop any active run, update the displayed time and reset all splits.
 SPLIT
 -----
 
-Moves to the next split. If the current split is the final split, does the same thing as an END event.
+Moves to the next split. If the current split is the final split, finishes the run at the given time.
