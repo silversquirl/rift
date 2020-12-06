@@ -12,7 +12,7 @@ namespace eval rift {
 	variable golds {}
 	variable splitLayout {}
 	array set filewarned {golds false pb false}
-	variable goldswarned false
+	variable doGoldBackup true
 
 	proc updateTimer {} {
 		variable time
@@ -118,6 +118,11 @@ namespace eval rift {
 			variable currentStartTime
 			if {$saveRun && [updateGolds $currentStartTime $time [.splits selection]]} {
 				variable golds
+				variable doGoldBackup
+				if {$doGoldBackup} {
+					file rename -force "$gamePath/golds" "$gamePath/golds.bak"
+					set doGoldBackup false
+				}
 				set f [open "$gamePath/golds" w]
 				try {
 					puts $f [formatSplitTimes {} $golds]
@@ -250,6 +255,7 @@ namespace eval rift {
 		if {![tryRead golds golds]} {
 			variable splitLayout
 			set golds $splitLayout
+			variable doGoldBackup false
 		}
 
 		# Set PB time
