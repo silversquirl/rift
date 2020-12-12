@@ -8,11 +8,14 @@ namespace eval rift {
 	variable currentStartTime 0
 	variable currentTimerLabel "XX:XX.XX"
 	variable runFilename ""
-	variable personalBest ""
+	variable personalBest inf
 	variable golds {}
 	variable splitLayout {}
 	array set filewarned {golds false pb false}
 	variable doGoldBackup true
+
+	variable saveDp 6
+	variable displayDp 3
 
 	proc updateTimer {} {
 		variable time
@@ -20,38 +23,39 @@ namespace eval rift {
 		variable currentStartTime
 		variable currentTimerLabel
 
-		set timerLabel [formatDuration $time]
-		set currentTimerLabel [formatDuration [expr $time - $currentStartTime]]
+		set timerLabel [formatDuration $::rift::displayDp $time]
+		set currentTimerLabel [formatDuration $::rift::displayDp [expr $time - $currentStartTime]]
 	}
 
 	variable CENTI  10000
 	variable SECOND [expr $CENTI * 100]
 	variable MINUTE [expr $SECOND * 60]
 	variable HOUR   [expr $MINUTE * 60]
-	proc formatDuration {micros} {
+	proc formatDuration {dp micros} {
 		set micros [expr int($micros)]
 		set hrs    [expr $micros / $::rift::HOUR]
 		set micros [expr $micros % $::rift::HOUR]
 		set mins   [expr $micros / $::rift::MINUTE]
 		set micros [expr $micros % $::rift::MINUTE]
-		set secs   [expr $micros / $::rift::SECOND]
-		set micros [expr $micros % $::rift::SECOND]
-		set centis [expr $micros / $::rift::CENTI]
+		set secs   [expr $micros / double($::rift::SECOND)]
 
-		set fmt [format "%.2d" $centis]
-		set fmt [formatPart {$hrs || $mins} 1 $secs . $fmt]
-		set fmt [formatPart $hrs $mins $mins : $fmt]
-		set fmt [formatPart 0 $hrs $hrs : $fmt]
-		return $fmt
-	}
-	proc formatPart {cond1 cond2 part sep fmt} {
-		if {[uplevel 1 expr $cond1]} {
-			format "%.2d%s%s" $part $sep $fmt
-		} elseif {[uplevel 1 expr $cond2]} {
-			format "%d%s%s" $part $sep $fmt
+		if {$hrs || $mins} {
+			set fmt [format "%0[expr {$dp + 3}].${dp}f" $secs]
 		} else {
-			return $fmt
+			set fmt [format "%.${dp}f" $secs]
 		}
+
+		if {$hrs} {
+			set fmt [format "%.2d:%s" $foo $fmt]
+		} elseif {$mins} {
+			set fmt [format "%d:%s" $foo $fmt]
+		}
+
+		if {$hrs} {
+			set fmt [format "%d:%s" $hrs $fmt]
+		}
+
+		return $fmt
 	}
 
 	proc parseDuration {fmt} {
@@ -92,7 +96,8 @@ namespace eval rift {
 		ttk::treeview .splits \
 			-style Splits.Treeview \
 			-selectmode none -show tree \
-			-columns {delta time}
+			-columns {delta time timeMicro} \
+			-displaycolumns {delta time}
 
 		.splits column delta -width 50 -stretch false
 		.splits column time -width 85 -stretch false
@@ -105,11 +110,14 @@ namespace eval rift {
 		if {$splitID ne [.splits selection]} {
 			# Set the previous split's time
 			variable timerLabel
+			variable time
 			set item [.splits selection]
 			.splits set $item time $timerLabel
+			.splits set $item timeMicro $time
 			while {$item ne {} && [.splits next $item] eq {}} {
 				set item [.splits parent $item]
 				.splits set $item time $timerLabel
+				.splits set $item timeMicro $time
 			}
 
 			# Update the golds file if needed
@@ -156,7 +164,7 @@ namespace eval rift {
 
 				# If this run is the new PB, update the symlink
 				variable personalBest
-				if {[parseDuration $personalBest] > [parseDuration [runLength]]} {
+				if {$personalBest > [runLength]} {
 					file delete "$gamePath/pb"
 					file link -symbolic "$gamePath/pb" "runs/$runFilename"
 					set personalBest [runLength]
@@ -183,8 +191,11 @@ namespace eval rift {
 	proc loadSplitTimes {root config} {
 		foreach {name body} $config item [.splits children $root] {
 			if {[llength $body] == 1} {
+				set tMicro [parseDuration [lindex $body 0]]
+				set tText [formatDuration $::rift::displayDp $tMicro]
 				while {$item ne {}} {
-					.splits set $item time [lindex $body 0]
+					.splits set $item timeMicro $tMicro
+					.splits set $item time $tText
 					set item [.splits parent $item]
 				}
 			} else {
@@ -199,7 +210,7 @@ namespace eval rift {
 			if {[llength [.splits children $item]]} {
 				lappend l [saveSplitTimes $item]
 			} else {
-				lappend l [.splits set $item time]
+				lappend l [formatDuration $::rift::saveDp [.splits set $item timeMicro]]
 			}
 		}
 		return $l
@@ -221,7 +232,7 @@ namespace eval rift {
 			set goldTime inf
 		}
 		if {$goldTime > $time} {
-			lset golds $path [formatDuration $time]
+			lset golds $path [formatDuration $::rift::saveDp $time]
 			return true
 		} else {
 			return false
@@ -284,11 +295,12 @@ namespace eval rift {
 	proc emptyTimes {item} {
 		foreach item [.splits children $item] {
 			.splits set $item time {}
+			.splits set $item timeMicro inf
 			emptyTimes $item
 		}
 	}
 	proc runLength {} {
-		 .splits set [lindex [.splits children {}] end] time
+		 .splits set [lindex [.splits children {}] end] timeMicro
 	}
 
 	proc splitter {path} {
