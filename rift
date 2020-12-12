@@ -46,9 +46,9 @@ namespace eval rift {
 		}
 
 		if {$hrs} {
-			set fmt [format "%.2d:%s" $foo $fmt]
+			set fmt [format "%.2d:%s" $mins $fmt]
 		} elseif {$mins} {
-			set fmt [format "%d:%s" $foo $fmt]
+			set fmt [format "%d:%s" $mins $fmt]
 		}
 
 		if {$hrs} {
