@@ -60,9 +60,9 @@ namespace eval rift {
 
 	proc parseDuration {fmt} {
 		set bits [split $fmt :]
-		set secs [lpop bits inf]
-		set mins [lpop bits 0]
-		set hrs  [lpop bits 0]
+		set secs [forceDecFloat [lpop bits inf]]
+		set mins [forceDecInt [lpop bits 0]]
+		set hrs  [forceDecInt [lpop bits 0]]
 		expr {$secs*$::rift::SECOND + $mins*$::rift::MINUTE + $hrs*$::rift::HOUR}
 	}
 	proc lpop {listVar default} {
@@ -74,6 +74,14 @@ namespace eval rift {
 		} else {
 			return $default
 		}
+	}
+	proc forceDecInt {x} {
+		scan $x %d n
+		return $n
+	}
+	proc forceDecFloat {x} {
+		scan $x %f n
+		return $n
 	}
 
 	proc title {game category} {
