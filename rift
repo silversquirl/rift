@@ -25,6 +25,27 @@ namespace eval rift {
 
 		set timerLabel [formatDuration $::rift::displayDp $time]
 		set currentTimerLabel [formatDuration $::rift::displayDp [expr $time - $currentStartTime]]
+
+		set item [.splits selection]
+		while {$item ne {}} {
+			set pbTime [.splits set $item timeMicro]
+			if {$pbTime == inf} {
+				.splits set $item delta {}
+			} else {
+				setDelta $::rift::displayDp [expr $time - $pbTime] $item
+			}
+			set item [.splits parent $item]
+		}
+	}
+
+	proc setDelta {dp micros item} {
+		if {$micros < 0} {
+			set sign "-"
+			set micros [expr - $micros]
+		} else {
+			set sign "+"
+		}
+		.splits set $item delta "$sign[formatDuration $dp $micros]"
 	}
 
 	variable CENTI  10000
@@ -204,6 +225,7 @@ namespace eval rift {
 				while {$item ne {}} {
 					.splits set $item timeMicro $tMicro
 					.splits set $item time $tText
+					.splits set $item delta {}
 					set item [.splits parent $item]
 				}
 			} else {
@@ -303,6 +325,7 @@ namespace eval rift {
 	proc emptyTimes {item} {
 		foreach item [.splits children $item] {
 			.splits set $item time {}
+			.splits set $item delta {}
 			.splits set $item timeMicro inf
 			emptyTimes $item
 		}
@@ -387,8 +410,8 @@ namespace eval rift {
 		splits.best {-foreground #ffdc00}
 		splits.aheadGain {-foreground #50d200}
 		splits.aheadLose {-foreground #b4ff78}
-		splits.behindGain {-foreground #c80000}
-		splits.behindLose {-foreground #ffdc00}
+		splits.behindGain {-foreground #c86464}
+		splits.behindLose {-foreground #c80000}
 	}
 	proc style {name args} {
 		# Attempt an access to ensure the key is valid
