@@ -15,7 +15,7 @@ namespace eval rift {
 	variable doGoldBackup true
 
 	variable saveDp 6
-	variable displayDp 3
+	variable displayDp 2
 
 	proc updateTimer {} {
 		variable time
@@ -45,7 +45,7 @@ namespace eval rift {
 		} else {
 			set sign "+"
 		}
-		.splits set $item delta "$sign[formatDuration $dp $micros]"
+		.splits set $item delta "$sign[formatDelta $dp $micros]"
 	}
 
 	variable CENTI  10000
@@ -77,6 +77,25 @@ namespace eval rift {
 		}
 
 		return $fmt
+	}
+	proc formatDelta {dp micros} {
+		set micros [expr int($micros)]
+		set hrs    [expr $micros / $::rift::HOUR]
+		set micros [expr $micros % $::rift::HOUR]
+		set mins   [expr $micros / $::rift::MINUTE]
+		set micros [expr $micros % $::rift::MINUTE]
+		set secs   [expr $micros / double($::rift::SECOND)]
+		set isecs  [expr int($secs)]
+
+		if {$hrs} {
+			return [format "%d:%.2d:%.2d" $hrs $mins $isecs]
+		}
+
+		if {$mins} {
+			return [format "%d:%.2d" $mins $isecs]
+		}
+
+		return [format "%.${dp}f" $secs]
 	}
 
 	proc parseDuration {fmt} {
@@ -128,8 +147,8 @@ namespace eval rift {
 			-columns {delta time timeMicro} \
 			-displaycolumns {delta time}
 
-		.splits column delta -width 50 -stretch false
-		.splits column time -width 85 -stretch false
+		.splits column delta -width 100 -stretch false
+		.splits column time -width 100 -stretch false
 
 		variable splitLayout $config
 		loadSplitLayout {} $splitLayout
